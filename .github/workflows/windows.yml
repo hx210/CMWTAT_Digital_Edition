@@ -1,0 +1,51 @@
+name: Windows
+on:
+  pull_request_target:
+    types: [opened, synchronize, reopened]
+  push:
+    branches:
+      - "main"
+      - "releases/**"
+
+  workflow_dispatch:
+    inputs:
+      release:
+        description: "Release version"
+        required: false
+        type: boolean
+        default: false
+jobs:
+  Build:
+    runs-on: windows-2022
+
+    steps:
+      - uses: actions/checkout@v2
+      - name: Add msbuild to PATH
+        uses: microsoft/setup-msbuild@v1.1
+
+      - name: Initialization
+        shell: pwsh
+        run: "git submodule update --init --recursive"
+
+      - name: Build
+        shell: pwsh
+        run: msbuild CMWTAT_DIGITAL.sln -t:restore,build -p:RestorePackagesConfig=true -p:Configuration=Release -p:OutDir=bin/Release
+
+      - name: 文件信息
+        shell: cmd
+        run: dir /b /s
+
+      - name: Upload To Artifact
+        uses: actions/upload-artifact@main
+        with:
+          name: Release${{ github.job }}
+          path: bin/Release
+
+      - name: Deploy Files To Release
+        if: ${{ github.event.inputs.release == 'true' }}
+        uses: ncipollo/release-action@v1
+        with:
+          allowUpdates: true
+          replacesArtifacts: true
+          token: ${{ secrets.GITHUB_TOKEN }}
+          artifacts: bin/Release/*
